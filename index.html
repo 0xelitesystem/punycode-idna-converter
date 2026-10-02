@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Punycode and IDNA Converter - see where one typed name becomes two DNS names</title>
+<meta name="description" content="Convert internationalized domain names to and from Punycode, and see where one typed name becomes two DNS names: the WHATWG URL Standard turns fa&szlig;.de into xn--fa-hia.de, while a deviation-mapping client such as Python's built-in idna codec turns it into fass.de.">
+<link rel="canonical" href="https://0xelitesystem.github.io/punycode-idna-converter/">
+<meta property="og:title" content="Punycode and IDNA Converter">
+<meta property="og:description" content="Convert domain names to and from Punycode and see where one typed name becomes two DNS names. RFC 3492 codec, A-label validation, DNS length flags, and an in-page self test. Runs offline.">
+<meta property="og:url" content="https://0xelitesystem.github.io/punycode-idna-converter/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Punycode and IDNA Converter","applicationCategory":"DeveloperApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://0xelitesystem.github.io/punycode-idna-converter/","author":{"@type":"Person","name":"0xelitesystem","url":"https://elitesystem.ai"}}
+</script>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0a0a0a; --surface:#111110; --surface-2:#161614;
+  --ink:#e8e8e3; --ink-soft:#a8a8a3; --muted:#6e6e68; --rule:#1f1f1d;
+  --rule-2:#2a2a27; --accent:#d4ff3a; --on-accent:#0a0a0a;
+  --code-bg:#111110; --ok:#7ddc7d; --warn:#ffb454; --err:#ff6450; --info:#6fd3e0;
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#e8ebef; --surface:#dee2e8; --surface-2:#d3d7df;
+  --ink:#0a0a0a; --ink-soft:#2a2a27; --muted:#6e6e68; --rule:#c8cdd5;
+  --rule-2:#aab0ba; --accent:#2d6b00; --on-accent:#ffffff;
+  --code-bg:#dee2e8; --ok:#1a5c2e; --warn:#8a4d00; --err:#a82d14; --info:#0f5c60;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    color-scheme: light;
+    --bg:#e8ebef; --surface:#dee2e8; --surface-2:#d3d7df;
+    --ink:#0a0a0a; --ink-soft:#2a2a27; --muted:#6e6e68; --rule:#c8cdd5;
+    --rule-2:#aab0ba; --accent:#2d6b00; --on-accent:#ffffff;
+    --code-bg:#dee2e8; --ok:#1a5c2e; --warn:#8a4d00; --err:#a82d14; --info:#0f5c60;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--rule);padding-bottom:16px;margin-bottom:8px}
+h1{font-size:26px;line-height:1.25;margin:0 0 6px}
+.tag{color:var(--ink-soft);margin:0;max-width:66ch}
+h2{font-size:19px;margin:34px 0 8px;padding-top:14px;border-top:1px solid var(--rule)}
+h3{font-size:15px;margin:18px 0 6px;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-soft)}
+p{margin:8px 0}
+a{color:var(--accent)}
+a:hover{color:var(--ink)}
+button,input,textarea{font-family:inherit;font-size:15px}
+button{background:var(--surface-2);color:var(--ink);border:1px solid var(--rule-2);border-radius:6px;padding:8px 13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible,.scroll:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
+input[type=text],textarea{width:100%;background:var(--code-bg);color:var(--ink);border:1px solid var(--rule-2);border-radius:6px;padding:10px 11px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:15px}
+textarea{min-height:84px;resize:vertical;line-height:1.5}
+label{color:var(--ink-soft);font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:14px;margin:12px 0;min-width:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cols .card{margin:0}
+.mono,code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.mono{font-size:14px;overflow-wrap:anywhere}
+code{font-size:.92em;background:var(--code-bg);border:1px solid var(--rule);border-radius:4px;padding:1px 4px;overflow-wrap:anywhere}
+.big{font-size:18px;font-weight:700;overflow-wrap:anywhere}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{background:var(--surface-2);color:var(--ink);font-weight:700}
+td{overflow-wrap:anywhere}
+tbody tr:last-child td{border-bottom:0}
+.k-ok{color:var(--ok)} .k-warn{color:var(--warn)} .k-err{color:var(--err)} .k-info{color:var(--info)}
+.soft{color:var(--ink-soft)}
+.msg{border-radius:6px;padding:10px 12px;margin:10px 0;border:1px solid var(--rule-2);background:var(--surface-2)}
+.msg.err{border-color:var(--err);color:var(--err)}
+.msg.warn{border-color:var(--warn);color:var(--warn)}
+.msg.ok{border-color:var(--ok);color:var(--ok)}
+.msg.info{border-color:var(--info);color:var(--info)}
+.verdict{font-size:17px;font-weight:700}
+.badge{display:inline-block;border:1px solid var(--warn);color:var(--warn);background:var(--surface-2);border-radius:4px;padding:0 4px;margin:0 1px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5}
+.flag{display:block}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:5px 0}
+footer{border-top:1px solid var(--rule);margin-top:40px;padding-top:16px;color:var(--ink-soft);font-size:14px}
+.sep{margin:0 6px}
+@media (max-width:700px){ .cols{grid-template-columns:1fr} }
+@media (max-width:520px){ h1{font-size:22px} .wrap{padding:16px 16px 48px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Punycode and IDNA Converter</h1>
+    <p class="tag">Convert internationalized domain names to and from Punycode, and see where one typed name becomes two DNS names. Your browser turns <span class="mono">fa&szlig;.de</span> into <span class="mono">xn--fa-hia.de</span>. A client that applies the deviation mapping, such as Python's built-in <span class="mono">idna</span> codec, turns the same text into <span class="mono">fass.de</span>. Everything runs in this tab, offline.</p>
+  </div>
+  <button id="themeToggle" type="button" aria-label="Switch to light theme">Light theme</button>
+</header>
+
+<main>
+<section aria-labelledby="h-convert">
+<h2 id="h-convert">1. Convert a domain name</h2>
+<p>Type a bare domain (<span class="mono">b&uuml;cher.de</span>), a full URL (<span class="mono">https://user@b&uuml;cher.de:8443/x</span>), or an A-label (<span class="mono">xn--bcher-kva.de</span>). The host is read out by your browser's own URL parser, then shown two ways.</p>
+<label for="dom">Domain, URL or A-label</label>
+<input type="text" id="dom" spellcheck="false" autocomplete="off" autocapitalize="off">
+<div class="row">
+  <button class="primary" id="convBtn" type="button">Convert</button>
+  <button id="exFass" type="button">Example: fa&szlig;.de</button>
+  <button id="exSigma" type="button">Example: &beta;&#972;&lambda;&omicron;&sigmaf;.com</button>
+  <button id="exZwj" type="button">Example: a + ZWJ + b.com</button>
+</div>
+<div id="out" aria-live="polite"></div>
+</section>
+
+<section aria-labelledby="h-raw">
+<h2 id="h-raw">2. Raw Punycode (RFC 3492, no IDNA)</h2>
+<p>This pane runs the bare codec: no <span class="mono">xn--</span> prefix, no mapping, no validation. It accepts strings that are valid Punycode but could never be a domain label, such as RFC 3492 sample S, <span class="mono">-&gt; $1.00 &lt;--</span>. Use the converter above for anything that is meant to be a host name.</p>
+<label for="raw">Text to encode, or Punycode to decode</label>
+<textarea id="raw" spellcheck="false"></textarea>
+<div class="row">
+  <button id="encBtn" type="button">Encode to Punycode</button>
+  <button id="decBtn" type="button">Decode from Punycode</button>
+  <input type="checkbox" id="annot"><label for="annot">Mixed-case annotation (RFC 3492 Appendix A)</label>
+</div>
+<div id="rawOut" aria-live="polite"></div>
+</section>
+
+<section aria-labelledby="h-engine">
+<h2 id="h-engine">3. Your browser</h2>
+<p>The WHATWG column is whatever this browser's URL parser returns. The IDNA mapping table it uses is the browser's own, and a web page cannot read which Unicode or IDNA version that table is, so this page does not print one.</p>
+<div id="engine"></div>
+</section>
+
+<section aria-labelledby="h-test">
+<h2 id="h-test">4. Self test</h2>
+<p>Runs on load. Codec tests use only this page's own code and must pass in every browser. Rows marked <em>browser</em> run your browser's URL parser; if one of those fails, your browser's IDNA differs from the published values, which is not a codec bug.</p>
+<div class="row"><button id="testBtn" type="button">Run self test again</button></div>
+<div id="testSummary" aria-live="polite"></div>
+<div class="scroll" role="region" aria-label="Self test results" tabindex="0"><table><thead><tr><th scope="col">Group</th><th scope="col">Test</th><th scope="col">Result</th></tr></thead><tbody id="testBody"></tbody></table></div>
+</section>
+
+<section aria-labelledby="h-how">
+<h2 id="h-how">5. How to use it, with real cases</h2>
+<ol>
+  <li><strong>A link opens a different site in a script than in the browser.</strong> Paste the host. If the verdict is SPLIT, a client that applies the deviation mapping (Python's standard library <span class="mono">idna</span> codec is one) and your browser are asking DNS for two different names. Send the A-label from the WHATWG column instead of the Unicode text, and both sides agree: Punycode is validated without mapping in both modes.</li>
+  <li><strong>Registering or configuring an IDN.</strong> Check the per-label table for the octet count. The URL parser does not enforce DNS length, so a name your browser happily produces can still be over the 63-octet label limit or the 253-octet name limit.</li>
+  <li><strong>An <span class="mono">xn--</span> label in a log, a certificate or an email header.</strong> Paste it. The page decodes it with its own RFC 3492 decoder and checks that it is a real A-label: it must decode, must contain at least one non-ASCII code point, and must survive a round trip through your browser's parser unchanged. <span class="mono">xn--8i7caa</span> decodes to three fullwidth letters that the parser maps to <span class="mono">www</span>, so it fails.</li>
+  <li><strong>Hidden characters.</strong> The converter echoes your input on a "Your input" line with zero width joiners, non-joiners, soft hyphens and other invisible code points drawn as visible <span class="badge">U+200D</span> badges, and lists each one with its position. IDNA mapping deletes some of them (a soft hyphen vanishes from both columns) and refuses others, so the input line is where you see what a pasted name really contains.</li>
+  <li><strong>Debugging your own Punycode code.</strong> Use the raw pane to encode or decode a bare string and compare. The self test shows the 19 RFC 3492 sample strings passing in your browser.</li>
+</ol>
+</section>
+
+<section aria-labelledby="h-why">
+<h2 id="h-why">6. What the two columns mean</h2>
+<p><strong>WHATWG (nontransitional).</strong> The WHATWG URL Standard ("domain parser" and "domain parser ToASCII", Last Updated 10 September 2026) runs UTS #46 ToASCII with CheckHyphens=beStrict, CheckBidi=true, CheckJoiners=true, UseSTD3ASCIIRules=beStrict, Transitional_Processing=false, VerifyDnsLength=beStrict and IgnoreInvalidPunycode=false. For URLs beStrict is false, which is why DNS length is not enforced and why this page checks it itself.</p>
+<p><strong>Deviation-mapped (UTS #46 Transitional Processing, deprecated), same flags as the WHATWG column.</strong> UTS #46 names four deviation characters: U+00DF &szlig;, U+03C2 &sigmaf;, U+200D ZWJ and U+200C ZWNJ. Section 2 says the only difference between Transitional and Nontransitional Processing "is the handling of the four Deviation characters", and Section 4 adds one more rule: under Transitional Processing, U+1E9E capital sharp s is replaced by "ss". So this column applies exactly five replacements to your whole input before parsing it with the same parser: &szlig; and &#7838; to <span class="mono">ss</span>, &sigmaf; to &sigma;, and ZWJ and ZWNJ deleted. Verified against IdnaMappingTable 18.0.0: U+1E9E is the only code point whose mapping produces a deviation character.</p>
+<p>This column is not a current browser mode. UTS #46 (Version 18.0.0, Revision 36, 2026-08-31) marks conformance clause C1 "(deprecated)" and says "the industry has fully transitioned to IDNA2008 behavior, and transitional processing has been deprecated." It is also not IDNA2003, which used a different mapping. It is what a client that still applies the deviation mapping computes.</p>
+<p>Two DNS-length rules are checked here because the parser does not: each label is 1 to 63 octets (RFC 1035 section 2.3.4, "labels 63 octets or less"; UTS #46 section 4.2), and the whole name is 1 to 253 octets, excluding a trailing root dot (UTS #46 section 4.2).</p>
+<p>Sources, as plain text so this page links nowhere it does not need to:</p>
+<ul class="mono">
+<li>UTS #46: https://www.unicode.org/reports/tr46/</li>
+<li>WHATWG URL Standard, domain parser: https://url.spec.whatwg.org/#concept-domain-to-ascii</li>
+<li>RFC 3492 (Punycode): https://www.rfc-editor.org/rfc/rfc3492</li>
+<li>RFC 1035 (DNS): https://www.rfc-editor.org/rfc/rfc1035</li>
+<li>IdnaMappingTable 18.0.0: https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt</li>
+</ul>
+<p>Punycode is implemented from RFC 3492 sections 5 and 6; no code is reproduced.</p>
+<p class="soft">This is an independent project. It is not affiliated with or endorsed by the Unicode Consortium, the WHATWG, the IETF, or the Python Software Foundation. Their names identify the specifications and software being compared.</p>
+</section>
+</main>
+
+<footer>
+<a href="https://elitesystem.ai">elitesystem.ai</a><span class="sep" aria-hidden="true">|</span><a href="https://github.com/0xelitesystem/punycode-idna-converter">source</a><span class="sep" aria-hidden="true">|</span><a href="https://0xelitesystem.github.io/">catalog</a><span class="sep" aria-hidden="true">|</span>MIT licensed
+</footer>
+</div>
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme ---------- */
+var root = document.documentElement, tbtn = document.getElementById('themeToggle');
+var TKEY = 'punycode-idna-converter-theme';
+function stored(){ try { return localStorage.getItem(TKEY); } catch(e){ return null; } }
+function save(v){ try { localStorage.setItem(TKEY, v); } catch(e){} }
+function effective(){
+  var a = root.getAttribute('data-theme');
+  if (a === 'light' || a === 'dark') return a;
+  try { if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light'; } catch(e){}
+  return 'dark';
+}
+function paintBtn(){
+  var other = effective() === 'dark' ? 'light' : 'dark';
+  tbtn.textContent = other === 'light' ? 'Light theme' : 'Dark theme';
+  tbtn.setAttribute('aria-label', 'Switch to ' + other + ' theme');
+}
+var s0 = stored(); if (s0 === 'light' || s0 === 'dark') root.setAttribute('data-theme', s0);
+paintBtn();
+tbtn.addEventListener('click', function(){
+  var next = effective() === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next); save(next); paintBtn();
+});
+
+/* ---------- DOM helpers (textContent only, input is never parsed as HTML) ---------- */
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function hex(cp){ var h = cp.toString(16).toUpperCase(); while (h.length < 4) h = '0' + h; return 'U+' + h; }
+function cpsOf(s){ return Array.from(s).map(function(c){ return c.codePointAt(0); }); }
+
+var INVIS = null;
+try { INVIS = new RegExp('^[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\p{Co}\\p{Cn}\\p{Zs}\\u115F\\u1160\\u3164\\uFFA0\\u2800\\u034F\\uFE00-\\uFE0F]$', 'u'); } catch(e) { INVIS = null; }
+function isInvisible(ch){
+  if (ch === ' ') return false;
+  if (INVIS) return INVIS.test(ch);
+  var c = ch.codePointAt(0);
+  return c < 0x20 || (c >= 0x7F && c <= 0x9F) || c === 0xAD || (c >= 0x200B && c <= 0x200F) || c === 0x3164 || c === 0xFEFF;
+}
+/* Render a string with every invisible or format character drawn as a U+XXXX badge. */
+function shown(s, cls){
+  var span = el('span', cls || 'mono');
+  var buf = '';
+  Array.from(s).forEach(function(ch){
+    if (isInvisible(ch)) {
+      if (buf) { span.appendChild(document.createTextNode(buf)); buf = ''; }
+      span.appendChild(el('span', 'badge', hex(ch.codePointAt(0))));
+    } else buf += ch;
+  });
+  if (buf) span.appendChild(document.createTextNode(buf));
+  return span;
+}
+
+/* ---------- RFC 3492 Punycode, written from sections 5 and 6 ----------
+   Parameters from section 5. Overflow per section 6.4 with maxint = 0xFFFFFFFF
+   (an unsigned 32-bit integer). JavaScript numbers are exact well past that, so
+   each "fail on overflow" step is a comparison against MAXINT before the operation. */
+var BASE = 36, TMIN = 1, TMAX = 26, SKEW = 38, DAMP = 700, INITIAL_BIAS = 72, INITIAL_N = 128, DELIM = 0x2D;
+var MAXINT = 0xFFFFFFFF;
+
+function PunyError(kind, msg){ this.kind = kind; this.message = msg; }
+
+function adapt(delta, numpoints, firsttime){
+  delta = firsttime ? Math.floor(delta / DAMP) : Math.floor(delta / 2);
+  delta += Math.floor(delta / numpoints);
+  var k = 0;
+  while (delta > Math.floor(((BASE - TMIN) * TMAX) / 2)) {
+    delta = Math.floor(delta / (BASE - TMIN));
+    k += BASE;
+  }
+  return k + Math.floor(((BASE - TMIN + 1) * delta) / (delta + SKEW));
+}
+function digitValue(cp){
+  if (cp >= 0x30 && cp <= 0x39) return cp - 0x30 + 26;
+  if (cp >= 0x41 && cp <= 0x5A) return cp - 0x41;
+  if (cp >= 0x61 && cp <= 0x7A) return cp - 0x61;
+  return -1;
+}
+function digitChar(d, upper){
+  if (d < 26) return String.fromCharCode((upper ? 0x41 : 0x61) + d);
+  return String.fromCharCode(0x30 + d - 26);
+}
+function isUpperAscii(cp){ return cp >= 0x41 && cp <= 0x5A; }
+function tFor(k, bias){ return k <= bias ? TMIN : (k >= bias + TMAX ? TMAX : k - bias); }
+
+/* decode(string) -> { cps: [...], flags: [bool...] }  flags = Appendix A annotation */
+function punyDecode(str){
+  var input = cpsOf(str);
+  var b = -1;
+  for (var j = 0; j < input.length; j++) if (input[j] === DELIM) b = j;
+  var out = [], flags = [];
+  for (j = 0; j < (b > 0 ? b : 0); j++) {
+    if (input[j] >= 0x80) throw new PunyError('nonbasic', 'non-basic code point ' + hex(input[j]) + ' before the last delimiter, at position ' + (j + 1));
+    out.push(input[j]); flags.push(isUpperAscii(input[j]));
+  }
+  var pos = b > 0 ? b + 1 : 0;
+  var n = INITIAL_N, i = 0, bias = INITIAL_BIAS;
+  while (pos < input.length) {
+    var oldi = i, w = 1, last = 0;
+    for (var k = BASE; ; k += BASE) {
+      if (pos >= input.length) throw new PunyError('truncated', 'input ended in the middle of a delta');
+      var cp = input[pos++];
+      var digit = digitValue(cp);
+      if (digit < 0) throw new PunyError('digit', 'invalid digit ' + JSON.stringify(String.fromCodePoint(cp)) + ' (' + hex(cp) + ') at position ' + pos);
+      if (digit > Math.floor((MAXINT - i) / w)) throw new PunyError('overflow', 'overflow while reading a delta (maxint 0xFFFFFFFF)');
+      i += digit * w;
+      var t = tFor(k, bias);
+      if (digit < t) { last = cp; break; }
+      if (w > Math.floor(MAXINT / (BASE - t))) throw new PunyError('overflow', 'overflow while scaling a delta (maxint 0xFFFFFFFF)');
+      w *= (BASE - t);
+    }
+    var len = out.length + 1;
+    bias = adapt(i - oldi, len, oldi === 0);
+    if (Math.floor(i / len) > MAXINT - n) throw new PunyError('overflow', 'overflow computing the next code point (maxint 0xFFFFFFFF)');
+    n += Math.floor(i / len);
+    i %= len;
+    if (n > 0x10FFFF) throw new PunyError('range', 'decoded value ' + n.toString(16).toUpperCase() + ' is beyond U+10FFFF');
+    if (n >= 0xD800 && n <= 0xDFFF) throw new PunyError('range', 'decoded value ' + hex(n) + ' is a surrogate, not a scalar value');
+    out.splice(i, 0, n);
+    flags.splice(i, 0, isUpperAscii(last));
+    i++;
+  }
+  return { cps: out, flags: flags };
+}
+
+/* encode(cps, flags?) -> string.  Basic code points are copied verbatim (Appendix A);
+   a flag only changes the case of the last digit of that code point's delta. */
+function punyEncode(cps, flags){
+  var out = '';
+  var n = INITIAL_N, delta = 0, bias = INITIAL_BIAS;
+  var b = 0;
+  cps.forEach(function(c){
+    if (c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF)) throw new PunyError('range', 'not a Unicode scalar value: ' + c);
+    if (c < 0x80) { out += String.fromCharCode(c); b++; }
+  });
+  var h = b;
+  if (b > 0) out += '-';
+  while (h < cps.length) {
+    var m = Infinity;
+    for (var j = 0; j < cps.length; j++) if (cps[j] >= n && cps[j] < m) m = cps[j];
+    if ((m - n) > Math.floor((MAXINT - delta) / (h + 1))) throw new PunyError('overflow', 'overflow in the encoder (maxint 0xFFFFFFFF)');
+    delta += (m - n) * (h + 1);
+    n = m;
+    for (j = 0; j < cps.length; j++) {
+      var c = cps[j];
+      if (c < n) { if (delta === MAXINT) throw new PunyError('overflow', 'overflow in the encoder (maxint 0xFFFFFFFF)'); delta++; }
+      if (c === n) {
+        var q = delta;
+        for (var k = BASE; ; k += BASE) {
+          var t = tFor(k, bias);
+          if (q < t) break;
+          out += digitChar(t + ((q - t) % (BASE - t)), false);
+          q = Math.floor((q - t) / (BASE - t));
+        }
+        out += digitChar(q, !!(flags && flags[j]));
+        bias = adapt(delta, h + 1, h === b);
+        delta = 0;
+        h++;
+      }
+    }
+    delta++; n++;
+  }
+  return out;
+}
+
+/* ---------- IDNA side ---------- */
+var DEV_NAMES = { 0xDF: 'LATIN SMALL LETTER SHARP S', 0x1E9E: 'LATIN CAPITAL LETTER SHARP S', 0x3C2: 'GREEK SMALL LETTER FINAL SIGMA', 0x200C: 'ZERO WIDTH NON-JOINER', 0x200D: 'ZERO WIDTH JOINER' };
+/* T: the deviation mapping. UTS 46 section 4 Map step, Transitional_Processing on,
+   restricted to the five code points it changes relative to nontransitional. */
+function T(s){
+  return s.replace(/ß/g, 'ss').replace(/ẞ/g, 'ss').replace(/ς/g, 'σ').replace(/[\u200C\u200D]/g, '');
+}
+var SPECIAL = { 'http:': 1, 'https:': 1, 'ws:': 1, 'wss:': 1, 'ftp:': 1 };
+/* Returns { ok:true, host } or { ok:false, why } or { ip:true } */
+function hostOf(input){
+  var u;
+  try { u = new URL(input.indexOf('://') >= 0 ? input : 'http://' + input + '/'); }
+  catch (e) { return { ok: false, why: 'refused by your browser\'s parser' }; }
+  if (!SPECIAL[u.protocol]) return { ok: false, why: 'scheme ' + u.protocol + ' is not a special scheme, so the URL parser does not apply IDNA to its host', scheme: true };
+  var h = u.hostname;
+  if (!h) return { ok: false, why: 'the URL has no host' };
+  if (h.charAt(0) === '[' || /^\d+\.\d+\.\d+\.\d+$/.test(h)) return { ok: true, ip: true, host: h };
+  return { ok: true, host: h };
+}
+function splitRoot(host){
+  var rootDot = host.length > 1 && host.charAt(host.length - 1) === '.';
+  return { name: rootDot ? host.slice(0, -1) : host, rootDot: rootDot };
+}
+
+/* A-label check, the page's own: run on every label that starts with xn-- */
+function checkALabel(label){
+  var low = label.toLowerCase();
+  var rest = label.slice(4);
+  var r = { ok: true, ulabel: null, problems: [] };
+  if (/[^\x00-\x7F]/.test(rest)) { r.ok = false; r.problems.push('contains non-ASCII after xn--'); return r; }
+  var dec;
+  try { dec = punyDecode(rest); }
+  catch (e) { r.ok = false; r.problems.push('invalid Punycode: ' + (e.message || e)); return r; }
+  r.ulabel = String.fromCodePoint.apply(null, dec.cps);
+  if (!dec.cps.length) { r.ok = false; r.problems.push('decodes to an empty label'); return r; }
+  if (dec.cps.every(function(c){ return c < 0x80; })) { r.ok = false; r.problems.push('decodes to ASCII only, so it is not an A-label'); return r; }
+  var back;
+  try { back = new URL('http://' + r.ulabel + '/').hostname; } catch (e) { back = null; }
+  if (back !== low) {
+    r.ok = false;
+    r.problems.push('decodes, but is not a valid A-label: ' + (back === null ? 'your browser\'s parser refuses the decoded label' : 'the decoded label parses to ' + back + ', not back to ' + low));
+  }
+  return r;
+}
+
+/* Script heuristic */
+var SCRIPTS = ['Latin','Cyrillic','Greek','Armenian','Georgian','Hebrew','Arabic','Devanagari','Bengali','Tamil','Sinhala','Thai','Han','Hiragana','Katakana','Hangul','Cherokee','Ethiopic'];
+var SCX = null, NEUTRAL = null;
+try {
+  SCX = SCRIPTS.map(function(s){ return { name: s, re: new RegExp('^\\p{Script_Extensions=' + s + '}$', 'u') }; });
+  NEUTRAL = new RegExp('^[\\p{Script=Common}\\p{Script=Inherited}]$', 'u');
+} catch (e) { SCX = null; }
+function scriptCheck(ulabel){
+  if (!SCX) return { unavailable: true };
+  var inter = null, seen = {};
+  Array.from(ulabel).forEach(function(ch){
+    var set = SCX.filter(function(x){ return x.re.test(ch); }).map(function(x){ return x.name; });
+    if (!set.length) return; /* Common or Inherited only, or a script outside the list: neutral */
+    set.forEach(function(n){ seen[n] = 1; });
+    inter = inter === null ? set : inter.filter(function(n){ return set.indexOf(n) >= 0; });
+  });
+  return { mixed: inter !== null && inter.length === 0, scripts: Object.keys(seen) };
+}
+
+/* other: the label at the same position in the other column's host, null when the
+   other reading is refused, undefined when there is nothing to compare against. */
+function labelInfo(label, other){
+  var info = { a: label, u: label, problems: [], warns: [], notes: [], octets: label.length };
+  if (/^xn--/i.test(label)) {
+    var c = checkALabel(label);
+    if (c.ulabel !== null) info.u = c.ulabel;
+    else info.u = null;
+    info.problems = info.problems.concat(c.problems);
+  }
+  if (label.length === 0) info.problems.push('empty label (0 octets, minimum 1)');
+  else if (label.length > 63) info.problems.push(label.length + ' octets, over the 63-octet label limit');
+  if (info.u) {
+    var sc = scriptCheck(info.u);
+    if (sc.unavailable) info.warns.push('script detection unavailable in this browser');
+    else if (sc.mixed) info.warns.push('mixed scripts (heuristic): ' + sc.scripts.join(', '));
+    var devs = cpsOf(info.u).filter(function(c){ return c === 0xDF || c === 0x3C2 || c === 0x200C || c === 0x200D; });
+    if (devs.length) {
+      var dl = 'contains deviation character ' + devs.map(hex).join(', ');
+      /* UTS 46 sec 4: Punycode is validated without mapping, so an A-label that
+         decodes to a deviation character is the same label in both modes. */
+      if (other !== undefined && other !== null && other.toLowerCase() === label.toLowerCase()) info.notes.push(dl + '; as Punycode it is validated without mapping, so both modes keep this A-label');
+      else if (other === null) info.warns.push(dl + '; the deviation-mapped reading of this name is refused');
+      else info.warns.push(dl + '; a deviation-mapping client computes a different label');
+    }
+  }
+  return info;
+}
+
+/* otherHost: the host from the other column, null if that reading was refused,
+   undefined if there is none to compare with. */
+function analyse(host, otherHost){
+  var sr = splitRoot(host);
+  var labels = sr.name.split('.');
+  var otherLabels = typeof otherHost === 'string' ? splitRoot(otherHost).name.split('.') : null;
+  var infos = labels.map(function(l, i){
+    var o = otherHost === undefined ? undefined : (otherLabels && otherLabels.length === labels.length ? otherLabels[i] : (otherHost === null ? null : ''));
+    return labelInfo(l, o);
+  });
+  var nameProblems = [];
+  if (sr.name.length > 253) nameProblems.push(sr.name.length + ' octets, over the 253-octet name limit (trailing root dot excluded)');
+  return { host: host, rootDot: sr.rootDot, nameLen: sr.name.length, labels: infos, nameProblems: nameProblems };
+}
+
+/* Full conversion, also used by the self test */
+function convert(input){
+  var nt = hostOf(input);
+  var tr = hostOf(T(input));
+  var verdict;
+  if (nt.ip || tr.ip) verdict = 'IP';
+  else if (nt.scheme) verdict = 'SCHEME';
+  else if (!nt.ok && !tr.ok) verdict = 'BOTH REFUSE';
+  else if (!nt.ok || !tr.ok) verdict = 'ONE SIDE REFUSES';
+  else if (nt.host === tr.host) verdict = 'SAME';
+  else verdict = 'SPLIT';
+  return { nt: nt, tr: tr, verdict: verdict };
+}
+
+/* ---------- converter UI ---------- */
+var dom = document.getElementById('dom'), out = document.getElementById('out');
+
+function labelTable(an, caption){
+  var wrap = el('div', 'scroll');
+  wrap.setAttribute('role', 'region'); wrap.setAttribute('aria-label', caption); wrap.tabIndex = 0;
+  var tb = el('table'), th = el('thead'), tr = el('tr');
+  ['Label (A-label)', 'U-label (this page\'s decoder)', 'Code points', 'Octets', 'Flags'].forEach(function(h){ var x = el('th', null, h); x.scope = 'col'; tr.appendChild(x); });
+  th.appendChild(tr); tb.appendChild(th);
+  var body = el('tbody');
+  an.labels.forEach(function(L){
+    var r = el('tr');
+    var c1 = el('td'); c1.appendChild(shown(L.a)); r.appendChild(c1);
+    var c2 = el('td'); if (L.u === null) c2.appendChild(el('span', 'k-err', 'not decodable')); else c2.appendChild(shown(L.u)); r.appendChild(c2);
+    r.appendChild(el('td', 'mono', L.u ? cpsOf(L.u).map(hex).join(' ') : ''));
+    r.appendChild(el('td', L.octets > 63 || L.octets === 0 ? 'k-err' : null, L.octets + ' / 63'));
+    var c5 = el('td');
+    if (!L.problems.length && !L.warns.length) c5.appendChild(el('span', 'k-ok flag', 'ok'));
+    L.problems.forEach(function(p){ c5.appendChild(el('span', 'k-err flag', p)); });
+    L.warns.forEach(function(p){ c5.appendChild(el('span', 'k-warn flag', p)); });
+    L.notes.forEach(function(p){ c5.appendChild(el('span', 'soft flag', p)); });
+    r.appendChild(c5);
+    body.appendChild(r);
+  });
+  tb.appendChild(body); wrap.appendChild(tb);
+  return wrap;
+}
+
+function column(title, sub, side, an){
+  var card = el('div', 'card');
+  card.appendChild(el('h3', null, title));
+  card.appendChild(el('p', 'soft', sub));
+  if (!side.ok) { card.appendChild(el('p', 'big k-err', side.why === 'refused by your browser\'s parser' ? 'refused by your browser\'s parser' : side.why)); return card; }
+  var p = el('p', 'big'); p.appendChild(shown(side.host, 'mono')); card.appendChild(p);
+  var uni = an.labels.map(function(L){ return L.u === null ? '�' : L.u; }).join('.') + (an.rootDot ? '.' : '');
+  var pu = el('p'); pu.appendChild(el('span', 'soft', 'Unicode form: ')); pu.appendChild(shown(uni)); card.appendChild(pu);
+  var len = el('p', an.nameProblems.length ? 'k-err' : 'soft', 'Name length: ' + an.nameLen + ' / 253 octets' + (an.rootDot ? ' (trailing root dot excluded)' : ''));
+  card.appendChild(len);
+  return card;
+}
+
+function render(){
+  out.textContent = '';
+  var raw = dom.value.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, '');
+  if (!raw) { out.appendChild(el('div', 'msg err', 'Enter a domain name, a URL or an A-label first.')); return; }
+  var r = convert(raw);
+  if (r.verdict === 'IP') { out.appendChild(el('div', 'msg info', 'IP address, IDNA does not apply. Your browser\'s parser reads the host as ' + (r.nt.host || r.tr.host) + '.')); return; }
+  if (r.verdict === 'SCHEME') { out.appendChild(el('div', 'msg err', 'Cannot convert: ' + r.nt.why + '. Enter a bare domain, or an http or https URL.')); return; }
+
+  var ntAn = r.nt.ok ? analyse(r.nt.host, r.tr.ok ? r.tr.host : null) : null;
+  var trAn = r.tr.ok ? analyse(r.tr.host, r.nt.ok ? r.nt.host : null) : null;
+  function invalid(a){ return !!a && (a.nameProblems.length > 0 || a.labels.some(function(L){ return L.problems.length > 0; })); }
+  var ntBad = invalid(ntAn), trBad = invalid(trAn);
+
+  var vtext = {
+    'SAME': ['ok', 'SAME: both readings produce the same DNS name.'],
+    'SPLIT': ['err', 'SPLIT: this name reaches two different DNS names.'],
+    'ONE SIDE REFUSES': ['warn', 'ONE SIDE REFUSES: one reading produces a DNS name and the other is refused.'],
+    'BOTH REFUSE': ['err', 'BOTH REFUSE: your browser\'s parser refuses this name either way.']
+  }[r.verdict];
+  var vcls = vtext[0], vmsg = vtext[1];
+  /* A parser that accepts a name is not proof the name is valid (xn--8i7caa, xn--a, xn--,
+     over-length labels), so the headline carries this page's own checks too. */
+  if (r.verdict === 'SAME' && ntBad) { vcls = 'err'; vmsg = 'SAME, but the name is not valid: both readings produce the same string, and this page\'s own checks reject it. See the label flags below.'; }
+  else if (ntBad || trBad) { vcls = 'err'; vmsg += ' The ' + (ntBad && trBad ? 'names in both columns are' : (ntBad ? 'name in the WHATWG column is' : 'name in the deviation-mapped column is')) + ' not valid: see the label flags below.'; }
+  out.appendChild(el('div', 'msg verdict ' + vcls, vmsg));
+
+  /* the raw input, echoed with every invisible or format code point as a badge */
+  var inLine = el('p');
+  inLine.appendChild(el('span', 'soft', 'Your input: '));
+  inLine.appendChild(shown(raw));
+  out.appendChild(inLine);
+  var hidden = [];
+  cpsOf(raw).forEach(function(c, i){ if (isInvisible(String.fromCodePoint(c))) hidden.push(hex(c) + ' at code point ' + (i + 1)); });
+  if (hidden.length) {
+    var hd = el('div', 'msg warn');
+    hd.appendChild(el('strong', null, 'Invisible or format characters in your input: '));
+    hd.appendChild(document.createTextNode(hidden.join('; ') + '. IDNA mapping deletes some of these and refuses others, so they may not appear in either column.'));
+    out.appendChild(hd);
+  }
+
+  /* deviation characters in the ORIGINAL input */
+  var devs = [];
+  cpsOf(raw).forEach(function(c, i){ if (DEV_NAMES[c]) devs.push(hex(c) + ' ' + DEV_NAMES[c] + ' at code point ' + (i + 1)); });
+  if (devs.length) {
+    var d = el('div', 'msg warn');
+    d.appendChild(el('strong', null, 'Deviation characters in your input: '));
+    d.appendChild(document.createTextNode(devs.join('; ') + '.'));
+    out.appendChild(d);
+  } else out.appendChild(el('p', 'soft', 'No deviation characters (U+00DF, U+1E9E, U+03C2, U+200C, U+200D) in your input.'));
+
+  var cols = el('div', 'cols');
+  cols.appendChild(column('WHATWG (nontransitional)', 'What your browser\'s URL parser returns.', r.nt, ntAn));
+  cols.appendChild(column('Deviation-mapped', 'UTS 46 Transitional Processing (deprecated), same flags as the WHATWG column.', r.tr, trAn));
+  out.appendChild(cols);
+
+  if (ntAn) { out.appendChild(el('h3', null, 'Labels, WHATWG column')); out.appendChild(labelTable(ntAn, 'Labels in the WHATWG column')); }
+  if (trAn && (!r.nt.ok || r.tr.host !== r.nt.host)) { out.appendChild(el('h3', null, 'Labels, deviation-mapped column')); out.appendChild(labelTable(trAn, 'Labels in the deviation-mapped column')); }
+  [ntAn, trAn].forEach(function(a){ if (a) a.nameProblems.forEach(function(p){ out.appendChild(el('div', 'msg err', 'Whole name: ' + p + '.')); }); });
+
+  var anyMixed = [ntAn, trAn].some(function(a){ return a && a.labels.some(function(L){ return L.warns.some(function(w){ return w.indexOf('mixed scripts') === 0; }); }); });
+  if (anyMixed) out.appendChild(el('p', 'soft', 'The mixed-scripts flag is a heuristic, not confusable detection. A single-script lookalike is not flagged: а.com with Cyrillic U+0430 gives xn--80a.com and is not mixed. Normal Japanese that mixes Han, Hiragana and Katakana will show as mixed.'));
+  out.appendChild(el('p', 'soft', 'Length flags are shown because your browser produces these names anyway: the URL parser runs with VerifyDnsLength off.'));
+}
+document.getElementById('convBtn').addEventListener('click', render);
+dom.addEventListener('keydown', function(e){ if (e.key === 'Enter') render(); });
+function example(v){ dom.value = v; render(); }
+document.getElementById('exFass').addEventListener('click', function(){ example('faß.de'); });
+document.getElementById('exSigma').addEventListener('click', function(){ example('βόλος.com'); });
+document.getElementById('exZwj').addEventListener('click', function(){ example('a\u200Db.com'); });
+
+/* ---------- raw pane ---------- */
+var raw = document.getElementById('raw'), rawOut = document.getElementById('rawOut'), annot = document.getElementById('annot');
+function single(s){ return Array.from(s).length === 1 ? s : null; }
+function rawEncode(){
+  rawOut.textContent = '';
+  var s = raw.value;
+  if (!s) { rawOut.appendChild(el('div', 'msg err', 'Enter some text to encode.')); return; }
+  var cps = cpsOf(s), flags = null;
+  if (annot.checked) {
+    flags = [];
+    cps = cps.map(function(c, i){
+      if (c < 0x80) { flags.push(isUpperAscii(c)); return c; }
+      var ch = String.fromCodePoint(c), lo = single(ch.toLowerCase());
+      if (lo && lo !== ch) { flags.push(true); return lo.codePointAt(0); }
+      flags.push(false); return c;
+    });
+  }
+  try {
+    var r = punyEncode(cps, flags);
+    var b = el('div', 'card'); b.appendChild(el('h3', null, 'Punycode')); var p = el('p', 'big'); p.appendChild(shown(r)); b.appendChild(p);
+    b.appendChild(el('p', 'soft', cps.length + ' code points in. ' + (annot.checked ? 'Annotated: uppercase non-basic letters were folded to lowercase and recorded in the case of the last digit of their delta.' : 'No annotation: delta digits are lowercase.')));
+    rawOut.appendChild(b);
+  } catch (e) { rawOut.appendChild(el('div', 'msg err', 'Cannot encode: ' + (e.message || e))); }
+}
+function rawDecode(){
+  rawOut.textContent = '';
+  var s = raw.value;
+  if (!s) { rawOut.appendChild(el('div', 'msg err', 'Enter some Punycode to decode.')); return; }
+  if (/^xn--/i.test(s)) rawOut.appendChild(el('div', 'msg warn', 'This pane decodes bare Punycode. The leading xn-- was decoded as part of the string; remove it, or use the converter above.'));
+  try {
+    var d = punyDecode(s);
+    var text = d.cps.map(function(c, i){
+      var ch = String.fromCodePoint(c);
+      if (annot.checked && c >= 0x80 && d.flags[i]) { var up = single(ch.toUpperCase()); if (up) return up; }
+      return ch;
+    }).join('');
+    var b = el('div', 'card'); b.appendChild(el('h3', null, 'Decoded')); var p = el('p', 'big'); p.appendChild(shown(text)); b.appendChild(p);
+    b.appendChild(el('p', 'mono', d.cps.map(function(c, i){ return (d.flags[i] ? 'U' : 'u') + hex(c).slice(1); }).join(' ')));
+    b.appendChild(el('p', 'soft', 'Each code point is prefixed with its Appendix A case flag, U or u, in the notation of RFC 3492 section 7.1. ' + (annot.checked ? 'Flagged non-basic code points were uppercased in the line above.' : 'Turn on the annotation option to apply the flags.')));
+    rawOut.appendChild(b);
+  } catch (e) { rawOut.appendChild(el('div', 'msg err', 'Invalid Punycode: ' + (e.message || e))); }
+}
+document.getElementById('encBtn').addEventListener('click', rawEncode);
+document.getElementById('decBtn').addEventListener('click', rawDecode);
+
+/* ---------- engine stamp ---------- */
+function engine(){
+  var box = document.getElementById('engine'); box.textContent = '';
+  var p = el('p'); p.appendChild(el('span', 'soft', 'User agent: ')); p.appendChild(el('span', 'mono', navigator.userAgent)); box.appendChild(p);
+  var live = null;
+  try { live = new URL('http://faß.de/').hostname; } catch (e) { live = null; }
+  if (live === 'xn--fa-hia.de') box.appendChild(el('div', 'msg ok', 'Live check passed: this browser maps faß.de to xn--fa-hia.de, so it uses nontransitional processing.'));
+  else box.appendChild(el('div', 'msg warn', 'Live check: this browser returned ' + (live === null ? 'a parse failure' : live) + ' for faß.de, not xn--fa-hia.de. It does not use nontransitional processing, and the WHATWG column reflects what this browser does.'));
+}
+engine();
+
+/* ---------- self test ---------- */
+var SAMPLES = [
+  {id:"A", cp:"0644 064A 0647 0645 0627 0628 062A 0643 0644 0645 0648 0634 0639 0631 0628 064A 061F", f:"uuuuuuuuuuuuuuuuu", p:"egbpdaj6bu4bxfgehfvwxn"},
+  {id:"B", cp:"4ED6 4EEC 4E3A 4EC0 4E48 4E0D 8BF4 4E2D 6587", f:"uuuuuuuuu", p:"ihqwcrb4cv8a8dqg056pqjye"},
+  {id:"C", cp:"4ED6 5011 7232 4EC0 9EBD 4E0D 8AAA 4E2D 6587", f:"uuuuuuuuu", p:"ihqwctvzc91f659drss3x8bo0yb"},
+  {id:"D", cp:"0050 0072 006F 010D 0070 0072 006F 0073 0074 011B 006E 0065 006D 006C 0075 0076 00ED 010D 0065 0073 006B 0079", f:"Uuuuuuuuuuuuuuuuuuuuuu", p:"Proprostnemluvesky-uyb24dma41a"},
+  {id:"E", cp:"05DC 05DE 05D4 05D4 05DD 05E4 05E9 05D5 05D8 05DC 05D0 05DE 05D3 05D1 05E8 05D9 05DD 05E2 05D1 05E8 05D9 05EA", f:"uuuuuuuuuuuuuuuuuuuuuu", p:"4dbcagdahymbxekheh6e0a7fei0b"},
+  {id:"F", cp:"092F 0939 0932 094B 0917 0939 093F 0928 094D 0926 0940 0915 094D 092F 094B 0902 0928 0939 0940 0902 092C 094B 0932 0938 0915 0924 0947 0939 0948 0902", f:"uuuuuuuuuuuuuuuuuuuuuuuuuuuuuu", p:"i1baa7eci9glrd9b2ae1bj0hfcgg6iyaf8o0a1dig0cd"},
+  {id:"G", cp:"306A 305C 307F 3093 306A 65E5 672C 8A9E 3092 8A71 3057 3066 304F 308C 306A 3044 306E 304B", f:"uuuuuuuuuuuuuuuuuu", p:"n8jok5ay5dzabd5bym9f0cm5685rrjetr6pdxa"},
+  {id:"H", cp:"C138 ACC4 C758 BAA8 B4E0 C0AC B78C B4E4 C774 D55C AD6D C5B4 B97C C774 D574 D55C B2E4 BA74 C5BC B9C8 B098 C88B C744 AE4C", f:"uuuuuuuuuuuuuuuuuuuuuuuu", p:"989aomsvi5e83db1d2a355cv1e0vak1dwrv93d5xbh15a0dt30a5jpsd879ccm6fea98c"},
+  {id:"I", cp:"043F 043E 0447 0435 043C 0443 0436 0435 043E 043D 0438 043D 0435 0433 043E 0432 043E 0440 044F 0442 043F 043E 0440 0443 0441 0441 043A 0438", f:"Uuuuuuuuuuuuuuuuuuuuuuuuuuuu", p:"b1abfaaepdrnnbgefbaDotcwatmq2g4l"},
+  {id:"J", cp:"0050 006F 0072 0071 0075 00E9 006E 006F 0070 0075 0065 0064 0065 006E 0073 0069 006D 0070 006C 0065 006D 0065 006E 0074 0065 0068 0061 0062 006C 0061 0072 0065 006E 0045 0073 0070 0061 00F1 006F 006C", f:"UuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuUuuuuuu", p:"PorqunopuedensimplementehablarenEspaol-fmd56a"},
+  {id:"K", cp:"0054 1EA1 0069 0073 0061 006F 0068 1ECD 006B 0068 00F4 006E 0067 0074 0068 1EC3 0063 0068 1EC9 006E 00F3 0069 0074 0069 1EBF 006E 0067 0056 0069 1EC7 0074", f:"UuuuuuuuuuuuuuuuuuuuuuuuuuuUuuu", p:"TisaohkhngthchnitingVit-kjcr8268qyxafd2f1b9g"},
+  {id:"L", cp:"0033 5E74 0042 7D44 91D1 516B 5148 751F", f:"uuUuuuuu", p:"3B-ww4c5e180e575a65lsy2b"},
+  {id:"M", cp:"5B89 5BA4 5948 7F8E 6075 002D 0077 0069 0074 0068 002D 0053 0055 0050 0045 0052 002D 004D 004F 004E 004B 0045 0059 0053", f:"uuuuuuuuuuuUUUUUuUUUUUUU", p:"-with-SUPER-MONKEYS-pc58ag80a8qai00g7n9n"},
+  {id:"N", cp:"0048 0065 006C 006C 006F 002D 0041 006E 006F 0074 0068 0065 0072 002D 0057 0061 0079 002D 305D 308C 305E 308C 306E 5834 6240", f:"UuuuuuUuuuuuuuUuuuuuuuuuu", p:"Hello-Another-Way--fc4qua05auwb3674vfr0b"},
+  {id:"O", cp:"3072 3068 3064 5C4B 6839 306E 4E0B 0032", f:"uuuuuuuu", p:"2-u9tlzr9756bt3uc0v"},
+  {id:"P", cp:"004D 0061 006A 0069 3067 004B 006F 0069 3059 308B 0035 79D2 524D", f:"UuuuuUuuuuuuu", p:"MajiKoi5-783gue6qz075azm5e"},
+  {id:"Q", cp:"30D1 30D5 30A3 30FC 0064 0065 30EB 30F3 30D0", f:"uuuuuuuuu", p:"de-jg4avhby1noc0d"},
+  {id:"R", cp:"305D 306E 30B9 30D4 30FC 30C9 3067", f:"uuuuuuu", p:"d9juau41awczczp"},
+  {id:"S", cp:"002D 003E 0020 0024 0031 002E 0030 0030 0020 003C 002D", f:"uuuuuuuuuuu", p:"-> $1.00 <--"}
+];
+function eqArr(a, b){ if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+function lowerDelta(p){ var j = p.lastIndexOf('-'); return j >= 0 ? p.slice(0, j + 1) + p.slice(j + 1).toLowerCase() : p.toLowerCase(); }
+function rejects(str, kind){ try { punyDecode(str); return false; } catch (e) { return e instanceof PunyError && e.kind === kind; } }
+
+function runTests(){
+  var rows = [];
+  function add(group, name, pass, note){ rows.push({ group: group, name: name, pass: !!pass, note: note || '' }); }
+
+  /* 1. RFC 3492 section 7.1 samples */
+  SAMPLES.forEach(function(s){
+    var cps = s.cp.split(' ').map(function(h){ return parseInt(h, 16); });
+    var flags = s.f.split('').map(function(c){ return c === 'U'; });
+    var low = lowerDelta(s.p);
+    var ok1 = false, ok2 = false, ok3 = false, ok4 = false;
+    try { ok1 = punyEncode(cps, flags) === s.p; } catch (e) {}
+    try { var d = punyDecode(s.p); ok2 = eqArr(d.cps, cps) && eqArr(d.flags, flags); } catch (e) {}
+    try { ok3 = eqArr(punyDecode(low).cps, cps); } catch (e) {}
+    try { ok4 = punyEncode(cps) === low; } catch (e) {}
+    add('codec', 'RFC 3492 sample ' + s.id + ': encode with flags, decode with flags, decode lowercased, encode unflagged', ok1 && ok2 && ok3 && ok4, [ok1, ok2, ok3, ok4].map(function(x){ return x ? 'pass' : 'FAIL'; }).join(' / '));
+  });
+
+  /* 2. decoder rejections */
+  add('codec', 'rejects 99999999999 as overflow', rejects('99999999999', 'overflow'));
+  add('codec', 'rejects abc-9 as a truncated delta', rejects('abc-9', 'truncated'));
+  add('codec', 'rejects abé-xyz (non-basic code point before the delimiter)', rejects('abé-xyz', 'nonbasic'));
+  add('codec', 'rejects abc-! (invalid digit)', rejects('abc-!', 'digit'));
+  add('codec', 'decoder digits are case-insensitive (EGBPDAJ6BU4BXFGEHFVWXN equals sample A)', (function(){ try { return eqArr(punyDecode('EGBPDAJ6BU4BXFGEHFVWXN').cps, punyDecode('egbpdaj6bu4bxfgehfvwxn').cps); } catch (e) { return false; } })());
+  add('codec', 'xn-- alone is not an A-label (empty after decoding)', !checkALabel('xn--').ok);
+
+  /* 3. UTS 46 Table 1 and the deviation mapping, in this browser */
+  var T1 = [
+    ['faß.de', 'xn--fa-hia.de', 'fass.de'],
+    ['βόλος.com', 'xn--nxasmm1c.com', 'xn--nxasmq6b.com'],
+    ['ශ්\u200Dරී.com', 'xn--10cl1a0b660p.com', 'xn--10cl1a0b.com'],
+    ['نامه\u200Cای.com', 'xn--mgba3gch31f060k.com', 'xn--mgba3gch31f.com'],
+    ['faẞ.de', 'xn--fa-hia.de', 'fass.de'],
+    ['xn--fu-hia.de', 'xn--fu-hia.de', 'xn--fu-hia.de']
+  ];
+  add('codec', 'T(faẞ.de) gives fass.de', T('faẞ.de') === 'fass.de');
+  T1.forEach(function(row){
+    var r = convert(row[0]);
+    var pass = r.nt.ok && r.tr.ok && r.nt.host === row[1] && r.tr.host === row[2];
+    add('browser', cpsOf(row[0]).map(function(c){ return c === 0x200D ? '[ZWJ]' : c === 0x200C ? '[ZWNJ]' : String.fromCodePoint(c); }).join('') + ' gives ' + row[1] + ' and ' + row[2], pass, pass ? '' : 'got ' + (r.nt.ok ? r.nt.host : 'refused') + ' and ' + (r.tr.ok ? r.tr.host : 'refused') + '; your browser\'s IDNA differs');
+  });
+  var z = convert('a\u200Db.com');
+  add('browser', 'a[ZWJ]b.com: WHATWG refuses, deviation-mapped gives ab.com', !z.nt.ok && z.tr.ok && z.tr.host === 'ab.com' && z.verdict === 'ONE SIDE REFUSES', 'verdict ' + z.verdict);
+
+  /* 4. A-label validation */
+  add('browser', 'xn--8i7caa is flagged invalid (decodes to fullwidth www)', !checkALabel('xn--8i7caa').ok);
+  add('browser', 'xn--a is flagged invalid (decodes to U+0080)', !checkALabel('xn--a').ok);
+  add('browser', 'xn--fu-hia is a valid A-label', checkALabel('xn--fu-hia').ok);
+  var fu = convert('xn--fu-hia.de'), ful = fu.nt.ok && fu.tr.ok ? analyse(fu.nt.host, fu.tr.host).labels[0] : null;
+  add('browser', 'xn--fu-hia.de: no "computes a different label" warning, since Punycode is validated without mapping', !!ful && !ful.warns.some(function(w){ return w.indexOf('deviation') >= 0; }) && ful.notes.some(function(w){ return w.indexOf('both modes keep this A-label') >= 0; }));
+  var fa = convert('faß.de'), fal = fa.nt.ok ? analyse(fa.nt.host, fa.tr.ok ? fa.tr.host : null).labels[0] : null;
+  add('browser', 'faß.de: the WHATWG label carries the "computes a different label" warning', !!fal && fal.warns.some(function(w){ return w.indexOf('computes a different label') >= 0; }));
+  var longIn = new Array(65).join('é') + '.com';
+  var lr = convert(longIn), lab = lr.nt.ok ? analyse(lr.nt.host).labels[0] : null;
+  add('browser', '64 x é + .com: label flagged over 63 octets', !!lab && lab.octets > 63 && lab.problems.some(function(p){ return p.indexOf('63-octet') >= 0; }), lab ? lab.octets + ' octets' : 'parser refused');
+  var cy = convert('а.com'), cyl = cy.nt.ok ? analyse(cy.nt.host).labels[0] : null;
+  add('browser', 'а.com (Cyrillic U+0430) gives xn--80a.com and is not flagged mixed', !!cyl && cy.nt.host === 'xn--80a.com' && !cyl.warns.some(function(w){ return w.indexOf('mixed') === 0; }));
+
+  /* 5. positive control, built to fail */
+  var control = false;
+  try { control = punyEncode([0x61, 0xE9]) === 'a-deliberately-wrong'; } catch (e) { control = false; }
+  add('control', 'positive control: a test built to fail must FAIL (it compares to a deliberately wrong answer)', control === false, control === false ? 'failed as designed, so the harness is live' : 'the control passed, so the harness is broken');
+
+  /* render */
+  var body = document.getElementById('testBody'); body.textContent = '';
+  rows.forEach(function(r){
+    var tr = el('tr');
+    tr.appendChild(el('td', null, r.group));
+    tr.appendChild(el('td', null, r.name));
+    tr.appendChild(el('td', r.pass ? 'k-ok' : 'k-err', (r.pass ? 'pass' : 'FAIL') + (r.note ? ' (' + r.note + ')' : '')));
+    body.appendChild(tr);
+  });
+  var passed = rows.filter(function(r){ return r.pass; }).length;
+  var codecFail = rows.filter(function(r){ return !r.pass && r.group !== 'browser'; }).length;
+  var browserFail = rows.filter(function(r){ return !r.pass && r.group === 'browser'; }).length;
+  var sum = document.getElementById('testSummary'); sum.textContent = '';
+  var cls = codecFail ? 'err' : (browserFail ? 'warn' : 'ok');
+  var msg = passed + ' of ' + rows.length + ' passed.';
+  if (codecFail) msg += ' ' + codecFail + ' codec or control test(s) failed: that is a bug in this page.';
+  if (browserFail) msg += ' ' + browserFail + ' browser test(s) failed: your browser\'s IDNA differs from the published values.';
+  sum.appendChild(el('div', 'msg ' + cls, msg));
+  window.__selfTest = { passed: passed, total: rows.length, codecFail: codecFail, browserFail: browserFail };
+}
+document.getElementById('testBtn').addEventListener('click', runTests);
+runTests();
+
+/* start with an example so the page is never blank */
+dom.value = 'faß.de';
+render();
+})();
+
+</script>
+</body>
+</html>
