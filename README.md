@@ -106,6 +106,6 @@ MIT. Copyright (c) 2026 RBL Industries LLC. See [LICENSE](LICENSE).
 
 ## Related
 
-- [unicode-character-inspector](https://github.com/0xelitesystem/unicode-character-inspector) - what each code point in a label actually is.
+- [unicode-codepoint-breakdown](https://github.com/0xelitesystem/unicode-codepoint-breakdown) - what each code point in a label actually is.
 - [url-parser-and-query-editor](https://github.com/0xelitesystem/url-parser-and-query-editor) - the rest of the URL around the host.
 - [domain-and-dns-basics-reference](https://github.com/0xelitesystem/domain-and-dns-basics-reference) - how a name becomes a DNS lookup.
